@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: patreon-webhook
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn webhook:app --bind 0.0.0.0:$PORT --workers 1 --timeout 60
+    envVars:
+      - key: PATREON_WEBHOOK_SECRET
+        sync: false
+      - key: DISCORD_WEBHOOK_URL
+        sync: false
+    healthCheckPath: /webhook/status
