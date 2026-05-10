@@ -14,7 +14,7 @@ app = Flask(__name__)
 PATREON_WEBHOOK_SECRET = os.environ.get("PATREON_WEBHOOK_SECRET", "")
 DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL", "")
 RENDER_EXTERNAL_URL = os.environ.get("RENDER_EXTERNAL_URL", "")
-PATREON_CREATOR_URL = os.environ.get("PATREON_CREATOR_URL", "https://www.patreon.com")
+PATREON_CREATOR_URL = os.environ.get("PATREON_CREATOR_URL", "https://www.patreon.com/magusferox")
 
 PING_INTERVAL = 10 * 60
 
