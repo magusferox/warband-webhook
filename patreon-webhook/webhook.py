@@ -100,6 +100,7 @@ def patreon_webhook():
     signature = request.headers.get("X-Patreon-Signature", "")
 
     if not verify_signature(raw_payload, signature):
+        log_event("(rejected — bad signature)", "", False, f"Got signature: {signature[:20]}...")
         abort(400)
 
     data = request.json
