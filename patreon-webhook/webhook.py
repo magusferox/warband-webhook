@@ -2,6 +2,8 @@ import collections
 import hashlib
 import hmac
 import os
+import threading
+import time
 from datetime import datetime, timezone
 
 import requests
@@ -11,6 +13,26 @@ app = Flask(__name__)
 
 PATREON_WEBHOOK_SECRET = os.environ.get("PATREON_WEBHOOK_SECRET", "")
 DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL", "")
+RENDER_EXTERNAL_URL = os.environ.get("RENDER_EXTERNAL_URL", "")
+
+PING_INTERVAL = 10 * 60
+
+
+def _keep_alive():
+    time.sleep(30)
+    while True:
+        if RENDER_EXTERNAL_URL:
+            try:
+                requests.get(f"{RENDER_EXTERNAL_URL}/webhook/status", timeout=10)
+                print("Keep-alive ping sent")
+            except Exception as e:
+                print(f"Keep-alive ping failed: {e}")
+        time.sleep(PING_INTERVAL)
+
+
+if RENDER_EXTERNAL_URL:
+    t = threading.Thread(target=_keep_alive, daemon=True)
+    t.start()
 
 MAX_LOG = 50
 event_log = collections.deque(maxlen=MAX_LOG)
