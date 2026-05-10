@@ -58,6 +58,27 @@ def log_event(title, url, discord_ok, error=None):
     })
 
 
+def send_to_discord(title, url, excerpt):
+    message = {
+        "content": (
+            f"🔥 **New Warband Update!** 🔥\n"
+            f"**{title}**\n"
+            f"🔗 {url}\n"
+            f"📝 {excerpt}..."
+        )
+    }
+    discord_ok = False
+    error = None
+    try:
+        resp = requests.post(DISCORD_WEBHOOK_URL, json=message, timeout=10)
+        discord_ok = resp.status_code in (200, 204)
+        if not discord_ok:
+            error = f"Discord returned {resp.status_code}"
+    except Exception as e:
+        error = str(e)
+    return discord_ok, error
+
+
 @app.route("/webhook", methods=["POST"])
 def patreon_webhook():
     raw_payload = request.data
@@ -78,27 +99,19 @@ def patreon_webhook():
         log_event("(parse error)", "", False, str(e))
         return "ok"
 
-    message = {
-        "content": (
-            f"🔥 **New Warband Update!** 🔥\n"
-            f"**{title}**\n"
-            f"🔗 {url}\n"
-            f"📝 {excerpt}..."
-        )
-    }
-
-    discord_ok = False
-    error = None
-    try:
-        resp = requests.post(DISCORD_WEBHOOK_URL, json=message, timeout=10)
-        discord_ok = resp.status_code in (200, 204)
-        if not discord_ok:
-            error = f"Discord returned {resp.status_code}"
-    except Exception as e:
-        error = str(e)
-
+    discord_ok, error = send_to_discord(title, url, excerpt)
     log_event(title, url, discord_ok, error)
     return "ok"
+
+
+@app.route("/webhook/test", methods=["POST"])
+def test_webhook():
+    title = "🧪 Test Post — Warband Webhook"
+    url = "https://www.patreon.com"
+    excerpt = "This is a test event fired from the status page to verify the Discord notification is working correctly."
+    discord_ok, error = send_to_discord(title, url, excerpt)
+    log_event(f"[TEST] {title}", url, discord_ok, error)
+    return jsonify({"ok": discord_ok, "error": error})
 
 
 @app.route("/webhook/status")
@@ -108,7 +121,7 @@ def status_page():
         badge = (
             '<span style="color:#22c55e;font-weight:600">✓ Sent</span>'
             if e["discord_ok"]
-            else f'<span style="color:#ef4444;font-weight:600">✗ Failed</span>'
+            else '<span style="color:#ef4444;font-weight:600">✗ Failed</span>'
         )
         error_cell = f'<span style="color:#ef4444;font-size:0.8em">{e["error"]}</span>' if e["error"] else ""
         title_cell = (
@@ -141,19 +154,29 @@ def status_page():
     * {{ box-sizing: border-box; margin: 0; padding: 0; }}
     body {{ background: #0f172a; color: #e2e8f0; font-family: system-ui, sans-serif; padding: 32px 16px; }}
     h1 {{ font-size: 1.4rem; font-weight: 700; margin-bottom: 4px; }}
-    .sub {{ color: #64748b; font-size: 0.85em; margin-bottom: 28px; }}
+    .sub {{ color: #64748b; font-size: 0.85em; margin-bottom: 20px; }}
+    .toolbar {{ display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }}
+    .btn {{ background: #7c3aed; color: #fff; border: none; border-radius: 8px; padding: 9px 20px; font-size: 0.9em; font-weight: 600; cursor: pointer; transition: background .15s; }}
+    .btn:hover {{ background: #6d28d9; }}
+    .btn:disabled {{ background: #334155; color: #64748b; cursor: not-allowed; }}
+    .result {{ font-size: 0.85em; }}
+    .ok {{ color: #22c55e; }}
+    .fail {{ color: #ef4444; }}
     .card {{ background: #1e293b; border: 1px solid #334155; border-radius: 12px; overflow: hidden; }}
     table {{ width: 100%; border-collapse: collapse; }}
     thead th {{ background: #0f172a; padding: 10px 14px; text-align: left; font-size: 0.75em; text-transform: uppercase; letter-spacing: .05em; color: #64748b; border-bottom: 1px solid #334155; }}
     tbody tr {{ border-bottom: 1px solid #1e293b; }}
     tbody tr:hover {{ background: #263348; }}
     tbody tr:last-child {{ border-bottom: none; }}
-    .pill {{ display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 0.75em; font-weight: 600; }}
   </style>
 </head>
 <body>
   <h1>🔥 Warband Webhook Status</h1>
   <p class="sub">Last {MAX_LOG} events &nbsp;·&nbsp; Auto-refreshes every 30 s</p>
+  <div class="toolbar">
+    <button class="btn" id="testBtn" onclick="sendTest()">Send Test to Discord</button>
+    <span class="result" id="testResult"></span>
+  </div>
   <div class="card">
     <table>
       <thead>
@@ -168,6 +191,32 @@ def status_page():
       </tbody>
     </table>
   </div>
+  <script>
+    async function sendTest() {{
+      const btn = document.getElementById('testBtn');
+      const result = document.getElementById('testResult');
+      btn.disabled = true;
+      btn.textContent = 'Sending...';
+      result.textContent = '';
+      try {{
+        const r = await fetch('/webhook/test', {{ method: 'POST' }});
+        const data = await r.json();
+        if (data.ok) {{
+          result.textContent = '✓ Discord message sent!';
+          result.className = 'result ok';
+        }} else {{
+          result.textContent = '✗ ' + (data.error || 'Failed');
+          result.className = 'result fail';
+        }}
+      }} catch(e) {{
+        result.textContent = '✗ Request failed';
+        result.className = 'result fail';
+      }}
+      btn.disabled = false;
+      btn.textContent = 'Send Test to Discord';
+      setTimeout(() => location.reload(), 1500);
+    }}
+  </script>
 </body>
 </html>"""
 
