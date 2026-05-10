@@ -43,7 +43,7 @@ def verify_signature(payload, signature):
     mac = hmac.new(
         PATREON_WEBHOOK_SECRET.encode("utf-8"),
         msg=payload,
-        digestmod=hashlib.sha256,
+        digestmod=hashlib.md5,
     )
     expected = mac.hexdigest()
     return hmac.compare_digest(expected, signature)
