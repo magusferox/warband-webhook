@@ -59,26 +59,28 @@ def log_event(title, url, discord_ok, error=None):
     })
 
 
-def send_to_discord(title, url, excerpt):
+def send_to_discord(title, url, excerpt, image_url=None):
+    embed = {
+        "title": title,
+        "url": url,
+        "description": excerpt + ("..." if excerpt else ""),
+        "color": 0xE8350A,
+        "footer": {
+            "text": "Patreon · Warband",
+            "icon_url": "https://c5.patreon.com/external/favicon/apple-touch-icon.png",
+        },
+        "author": {
+            "name": "magusferox on Patreon",
+            "url": PATREON_CREATOR_URL,
+            "icon_url": "https://c5.patreon.com/external/favicon/apple-touch-icon.png",
+        },
+    }
+    if image_url:
+        embed["image"] = {"url": image_url}
+
     message = {
         "content": "🔥 **New Warband Update!**",
-        "embeds": [
-            {
-                "title": title,
-                "url": url,
-                "description": excerpt + ("..." if excerpt else ""),
-                "color": 0xE8350A,
-                "footer": {
-                    "text": "Patreon · Warband",
-                    "icon_url": "https://c5.patreon.com/external/favicon/apple-touch-icon.png",
-                },
-                "author": {
-                    "name": "magusferox on Patreon",
-                    "url": PATREON_CREATOR_URL,
-                    "icon_url": "https://c5.patreon.com/external/favicon/apple-touch-icon.png",
-                },
-            }
-        ],
+        "embeds": [embed],
     }
     discord_ok = False
     error = None
@@ -107,12 +109,14 @@ def patreon_webhook():
         title = post["attributes"]["title"]
         url = post["attributes"]["url"]
         excerpt = post["attributes"].get("content", "")[:200]
+        image_data = post["attributes"].get("image") or {}
+        image_url = image_data.get("large_url") or image_data.get("url")
     except Exception as e:
         print("Error parsing Patreon payload:", e)
         log_event("(parse error)", "", False, str(e))
         return "ok"
 
-    discord_ok, error = send_to_discord(title, url, excerpt)
+    discord_ok, error = send_to_discord(title, url, excerpt, image_url)
     log_event(title, url, discord_ok, error)
     return "ok"
 
