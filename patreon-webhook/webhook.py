@@ -61,12 +61,24 @@ def log_event(title, url, discord_ok, error=None):
 
 def send_to_discord(title, url, excerpt):
     message = {
-        "content": (
-            f"🔥 **New Warband Update!** 🔥\n"
-            f"**{title}**\n"
-            f"🔗 {url}\n"
-            f"📝 {excerpt}..."
-        )
+        "content": "🔥 **New Warband Update!**",
+        "embeds": [
+            {
+                "title": title,
+                "url": url,
+                "description": excerpt + ("..." if excerpt else ""),
+                "color": 0xE8350A,
+                "footer": {
+                    "text": "Patreon · Warband",
+                    "icon_url": "https://c5.patreon.com/external/favicon/apple-touch-icon.png",
+                },
+                "author": {
+                    "name": "magusferox on Patreon",
+                    "url": PATREON_CREATOR_URL,
+                    "icon_url": "https://c5.patreon.com/external/favicon/apple-touch-icon.png",
+                },
+            }
+        ],
     }
     discord_ok = False
     error = None
