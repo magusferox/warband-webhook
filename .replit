@@ -9,28 +9,6 @@ args = ["pnpm", "store", "prune"]
 env = { "CI" = "true" }
 
 [workflows]
-runButton = "Project"
-
-[[workflows.workflow]]
-name = "Project"
-mode = "parallel"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Patreon Webhook"
-
-[[workflows.workflow]]
-name = "Patreon Webhook"
-author = "agent"
-
-[workflows.workflow.metadata]
-outputType = "console"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "cd patreon-webhook && PORT=8000 python webhook.py"
-waitForPort = 8000
 
 [agent]
 stack = "PNPM_WORKSPACE"

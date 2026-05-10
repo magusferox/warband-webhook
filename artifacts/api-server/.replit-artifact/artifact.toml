@@ -30,3 +30,11 @@ NODE_ENV = "production"
 
 [services.production.health.startup]
 path = "/api/healthz"
+
+[[services]]
+localPort = 8000
+name = "Patreon Webhook"
+paths = ["/webhook"]
+
+[services.development]
+run = "cd /home/runner/workspace/patreon-webhook && python webhook.py"
