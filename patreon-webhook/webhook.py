@@ -111,6 +111,11 @@ def send_to_discord(title, url, excerpt, image_url=None):
     return discord_ok, error
 
 
+def _dispatch_to_discord(title, url, excerpt, image_url):
+    discord_ok, error = send_to_discord(title, url, excerpt, image_url)
+    log_event(title, url, discord_ok, error)
+
+
 @app.route("/webhook", methods=["POST"])
 def patreon_webhook():
     raw_payload = request.data
@@ -134,8 +139,11 @@ def patreon_webhook():
         log_event("(parse error)", "", False, str(e))
         return "ok"
 
-    discord_ok, error = send_to_discord(title, url, excerpt, image_url)
-    log_event(title, url, discord_ok, error)
+    threading.Thread(
+        target=_dispatch_to_discord,
+        args=(title, url, excerpt, image_url),
+        daemon=True,
+    ).start()
     return "ok"
 
 
