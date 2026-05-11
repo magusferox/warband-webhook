@@ -38,10 +38,35 @@ if RENDER_EXTERNAL_URL:
     t.start()
 
 MAX_LOG = 50
+MAX_QUEUE = 10
 event_log = collections.deque(maxlen=MAX_LOG)
+pending_queue = collections.deque(maxlen=MAX_QUEUE)
 last_keepalive_ping = None
 discord_rate_limit_until = 0.0
 _discord_lock = threading.Lock()
+_queue_lock = threading.Lock()
+
+
+def _queue_worker():
+    while True:
+        time.sleep(10)
+        with _discord_lock:
+            in_cooldown = discord_rate_limit_until > time.time()
+        if in_cooldown:
+            continue
+        with _queue_lock:
+            if not pending_queue:
+                continue
+            item = pending_queue.popleft()
+        print(f"Queue worker sending deferred post: {item['title']!r}")
+        discord_ok, error = send_to_discord(
+            item["title"], item["url"], item["excerpt"], item.get("image_url")
+        )
+        log_event(item["title"], item["url"], discord_ok, error)
+        time.sleep(2)
+
+
+threading.Thread(target=_queue_worker, daemon=True).start()
 
 
 def verify_signature(payload, signature):
@@ -122,6 +147,19 @@ def send_to_discord(title, url, excerpt, image_url=None):
 
 
 def _dispatch_to_discord(title, url, excerpt, image_url):
+    with _discord_lock:
+        in_cooldown = discord_rate_limit_until > time.time()
+    if in_cooldown:
+        with _queue_lock:
+            pending_queue.append({
+                "title": title,
+                "url": url,
+                "excerpt": excerpt,
+                "image_url": image_url,
+            })
+        print(f"Discord in cooldown — queued post: {title!r} ({len(pending_queue)} in queue)")
+        log_event(title, url, False, f"Queued — will send when Discord cooldown clears")
+        return
     discord_ok, error = send_to_discord(title, url, excerpt, image_url)
     log_event(title, url, discord_ok, error)
 
@@ -225,7 +263,7 @@ def status_page():
 </head>
 <body>
   <h1>🔥 Warband Webhook Status</h1>
-  <p class="sub">Last {MAX_LOG} events &nbsp;·&nbsp; Auto-refreshes every 30 s &nbsp;·&nbsp; Keep-alive: {"🟢 Last ping " + last_keepalive_ping if last_keepalive_ping else "⏳ First ping in ~30 s" if RENDER_EXTERNAL_URL else "⚪ Not on Render"} &nbsp;·&nbsp; Discord: {("🔴 Cooldown " + (lambda s: f"{int(s//60)}m {int(s%60)}s" if s >= 60 else f"{int(s)}s")(discord_rate_limit_until - time.time())) if discord_rate_limit_until > time.time() else "🟢 Ready"}</p>
+  <p class="sub">Last {MAX_LOG} events &nbsp;·&nbsp; Auto-refreshes every 30 s &nbsp;·&nbsp; Keep-alive: {"🟢 Last ping " + last_keepalive_ping if last_keepalive_ping else "⏳ First ping in ~30 s" if RENDER_EXTERNAL_URL else "⚪ Not on Render"} &nbsp;·&nbsp; Discord: {("🔴 Cooldown " + (lambda s: f"{int(s//60)}m {int(s%60)}s" if s >= 60 else f"{int(s)}s")(discord_rate_limit_until - time.time()) + (f" · 📬 {len(pending_queue)} queued" if pending_queue else "")) if discord_rate_limit_until > time.time() else "🟢 Ready"}</p>
   <div class="toolbar">
     <button class="btn" id="testBtn" onclick="sendTest()">Send Test to Discord</button>
     <span class="result" id="testResult"></span>
