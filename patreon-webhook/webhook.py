@@ -40,6 +40,8 @@ if RENDER_EXTERNAL_URL:
 MAX_LOG = 50
 event_log = collections.deque(maxlen=MAX_LOG)
 last_keepalive_ping = None
+discord_rate_limit_until = 0.0
+_discord_lock = threading.Lock()
 
 
 def verify_signature(payload, signature):
@@ -63,6 +65,17 @@ def log_event(title, url, discord_ok, error=None):
 
 
 def send_to_discord(title, url, excerpt, image_url=None):
+    global discord_rate_limit_until
+
+    with _discord_lock:
+        cooldown_remaining = discord_rate_limit_until - time.time()
+        if cooldown_remaining > 0:
+            mins = int(cooldown_remaining // 60)
+            secs = int(cooldown_remaining % 60)
+            label = f"{mins}m {secs}s" if mins else f"{secs}s"
+            print(f"Discord in cooldown — skipping send, {label} remaining")
+            return False, f"Discord cooldown active — {label} remaining"
+
     embed = {
         "title": title,
         "url": url,
@@ -85,33 +98,27 @@ def send_to_discord(title, url, excerpt, image_url=None):
         "content": "🔥 **New Warband Update!**",
         "embeds": [embed],
     }
-    discord_ok = False
-    error = None
-    max_retries = 5
-    for attempt in range(max_retries):
-        try:
-            resp = requests.post(DISCORD_WEBHOOK_URL, json=message, timeout=10)
-            if resp.status_code == 429:
-                try:
-                    retry_after = float(resp.json().get("retry_after", 0))
-                except Exception:
-                    retry_after = 0
-                if retry_after <= 0:
-                    retry_after = min(5.0 * (2 ** attempt), 60.0)
-                print(f"Discord 429 body: {resp.text[:200]!r}")
-                print(f"Discord rate limited — retrying in {retry_after}s (attempt {attempt + 1}/{max_retries})")
-                time.sleep(retry_after)
-                continue
-            discord_ok = resp.status_code in (200, 204)
-            if not discord_ok:
-                error = f"Discord {resp.status_code}: {resp.text[:120]}"
-            break
-        except Exception as e:
-            error = str(e)
-            break
-    else:
-        error = f"Discord rate limit: gave up after {max_retries} retries"
-    return discord_ok, error
+    try:
+        resp = requests.post(DISCORD_WEBHOOK_URL, json=message, timeout=10)
+        if resp.status_code == 429:
+            try:
+                retry_after = float(resp.json().get("retry_after", 0))
+            except Exception:
+                retry_after = 0
+            if retry_after <= 0:
+                retry_after = 60.0
+            with _discord_lock:
+                discord_rate_limit_until = time.time() + retry_after
+            print(f"Discord 429 — cooldown set for {retry_after}s. Body: {resp.text[:200]!r}")
+            mins = int(retry_after // 60)
+            secs = int(retry_after % 60)
+            label = f"{mins}m {secs}s" if mins else f"{secs}s"
+            return False, f"Discord rate limited — cooldown set for {label}"
+        discord_ok = resp.status_code in (200, 204)
+        error = None if discord_ok else f"Discord {resp.status_code}: {resp.text[:120]}"
+        return discord_ok, error
+    except Exception as e:
+        return False, str(e)
 
 
 def _dispatch_to_discord(title, url, excerpt, image_url):
@@ -218,7 +225,7 @@ def status_page():
 </head>
 <body>
   <h1>🔥 Warband Webhook Status</h1>
-  <p class="sub">Last {MAX_LOG} events &nbsp;·&nbsp; Auto-refreshes every 30 s &nbsp;·&nbsp; Keep-alive: {"🟢 Last ping " + last_keepalive_ping if last_keepalive_ping else "⏳ First ping in ~30 s" if RENDER_EXTERNAL_URL else "⚪ Not on Render"}</p>
+  <p class="sub">Last {MAX_LOG} events &nbsp;·&nbsp; Auto-refreshes every 30 s &nbsp;·&nbsp; Keep-alive: {"🟢 Last ping " + last_keepalive_ping if last_keepalive_ping else "⏳ First ping in ~30 s" if RENDER_EXTERNAL_URL else "⚪ Not on Render"} &nbsp;·&nbsp; Discord: {("🔴 Cooldown " + (lambda s: f"{int(s//60)}m {int(s%60)}s" if s >= 60 else f"{int(s)}s")(discord_rate_limit_until - time.time())) if discord_rate_limit_until > time.time() else "🟢 Ready"}</p>
   <div class="toolbar">
     <button class="btn" id="testBtn" onclick="sendTest()">Send Test to Discord</button>
     <span class="result" id="testResult"></span>
