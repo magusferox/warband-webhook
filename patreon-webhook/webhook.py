@@ -87,16 +87,18 @@ def send_to_discord(title, url, excerpt, image_url=None):
     }
     discord_ok = False
     error = None
-    max_retries = 3
+    max_retries = 5
     for attempt in range(max_retries):
         try:
             resp = requests.post(DISCORD_WEBHOOK_URL, json=message, timeout=10)
             if resp.status_code == 429:
                 try:
-                    retry_after = float(resp.json().get("retry_after", 2))
+                    retry_after = float(resp.json().get("retry_after", 0))
                 except Exception:
-                    retry_after = 2.0
-                print(f"Discord rate limited — retrying in {retry_after}s (attempt {attempt + 1})")
+                    retry_after = 0
+                if retry_after <= 0:
+                    retry_after = min(5.0 * (2 ** attempt), 60.0)
+                print(f"Discord rate limited — retrying in {retry_after}s (attempt {attempt + 1}/{max_retries})")
                 time.sleep(retry_after)
                 continue
             discord_ok = resp.status_code in (200, 204)
@@ -107,7 +109,7 @@ def send_to_discord(title, url, excerpt, image_url=None):
             error = str(e)
             break
     else:
-        error = "Discord rate limit: gave up after 3 retries"
+        error = f"Discord rate limit: gave up after {max_retries} retries"
     return discord_ok, error
 
 
