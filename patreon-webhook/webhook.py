@@ -98,12 +98,13 @@ def send_to_discord(title, url, excerpt, image_url=None):
                     retry_after = 0
                 if retry_after <= 0:
                     retry_after = min(5.0 * (2 ** attempt), 60.0)
+                print(f"Discord 429 body: {resp.text[:200]!r}")
                 print(f"Discord rate limited — retrying in {retry_after}s (attempt {attempt + 1}/{max_retries})")
                 time.sleep(retry_after)
                 continue
             discord_ok = resp.status_code in (200, 204)
             if not discord_ok:
-                error = f"Discord returned {resp.status_code}"
+                error = f"Discord {resp.status_code}: {resp.text[:120]}"
             break
         except Exception as e:
             error = str(e)
