@@ -20,12 +20,14 @@ PING_INTERVAL = 10 * 60
 
 
 def _keep_alive():
+    global last_keepalive_ping
     time.sleep(30)
     while True:
         if RENDER_EXTERNAL_URL:
             try:
                 requests.get(f"{RENDER_EXTERNAL_URL}/webhook/status", timeout=10)
-                print("Keep-alive ping sent")
+                last_keepalive_ping = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+                print(f"Keep-alive ping sent at {last_keepalive_ping}")
             except Exception as e:
                 print(f"Keep-alive ping failed: {e}")
         time.sleep(PING_INTERVAL)
@@ -37,6 +39,7 @@ if RENDER_EXTERNAL_URL:
 
 MAX_LOG = 50
 event_log = collections.deque(maxlen=MAX_LOG)
+last_keepalive_ping = None
 
 
 def verify_signature(payload, signature):
@@ -190,7 +193,7 @@ def status_page():
 </head>
 <body>
   <h1>🔥 Warband Webhook Status</h1>
-  <p class="sub">Last {MAX_LOG} events &nbsp;·&nbsp; Auto-refreshes every 30 s</p>
+  <p class="sub">Last {MAX_LOG} events &nbsp;·&nbsp; Auto-refreshes every 30 s &nbsp;·&nbsp; Keep-alive: {"🟢 Last ping " + last_keepalive_ping if last_keepalive_ping else "⏳ First ping in ~30 s" if RENDER_EXTERNAL_URL else "⚪ Not on Render"}</p>
   <div class="toolbar">
     <button class="btn" id="testBtn" onclick="sendTest()">Send Test to Discord</button>
     <span class="result" id="testResult"></span>
