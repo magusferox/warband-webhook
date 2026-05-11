@@ -235,6 +235,25 @@ def status_page():
     </table>
   </div>
   <script>
+    const COOLDOWN = 30;
+    let cooldownTimer = null;
+
+    function startCooldown(btn) {{
+      let remaining = COOLDOWN;
+      btn.disabled = true;
+      btn.textContent = `Cooldown (${{remaining}}s)`;
+      cooldownTimer = setInterval(() => {{
+        remaining -= 1;
+        if (remaining <= 0) {{
+          clearInterval(cooldownTimer);
+          btn.disabled = false;
+          btn.textContent = 'Send Test to Discord';
+        }} else {{
+          btn.textContent = `Cooldown (${{remaining}}s)`;
+        }}
+      }}, 1000);
+    }}
+
     async function sendTest() {{
       const btn = document.getElementById('testBtn');
       const result = document.getElementById('testResult');
@@ -255,8 +274,7 @@ def status_page():
         result.textContent = '✗ Request failed';
         result.className = 'result fail';
       }}
-      btn.disabled = false;
-      btn.textContent = 'Send Test to Discord';
+      startCooldown(btn);
       setTimeout(() => location.reload(), 1500);
     }}
   </script>
