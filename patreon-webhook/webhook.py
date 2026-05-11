@@ -134,11 +134,12 @@ def send_to_discord(title, url, excerpt, image_url=None):
                 retry_after = 60.0
             with _discord_lock:
                 discord_rate_limit_until = time.time() + retry_after
-            print(f"Discord 429 — cooldown set for {retry_after}s. Body: {resp.text[:200]!r}")
+            body_preview = resp.text[:200] if resp.text else "(empty)"
+            print(f"Discord 429 — cooldown set for {retry_after}s. Body: {body_preview!r}")
             mins = int(retry_after // 60)
             secs = int(retry_after % 60)
             label = f"{mins}m {secs}s" if mins else f"{secs}s"
-            return False, f"Discord rate limited — cooldown set for {label}"
+            return False, f"Discord 429 — body: {body_preview}"
         discord_ok = resp.status_code in (200, 204)
         error = None if discord_ok else f"Discord {resp.status_code}: {resp.text[:120]}"
         return discord_ok, error
