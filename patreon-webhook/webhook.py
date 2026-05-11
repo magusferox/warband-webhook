@@ -123,23 +123,33 @@ def send_to_discord(title, url, excerpt, image_url=None):
         "content": "🔥 **New Warband Update!**",
         "embeds": [embed],
     }
+    headers = {
+        "Content-Type": "application/json",
+        "User-Agent": "DiscordBot (warband-webhook, 1.0)",
+    }
     try:
-        resp = requests.post(DISCORD_WEBHOOK_URL, json=message, timeout=10)
+        resp = requests.post(DISCORD_WEBHOOK_URL, json=message, headers=headers, timeout=10)
         if resp.status_code == 429:
             try:
                 retry_after = float(resp.json().get("retry_after", 0))
             except Exception:
                 retry_after = 0
             if retry_after <= 0:
+                try:
+                    retry_after = float(resp.headers.get("Retry-After", 0))
+                except Exception:
+                    retry_after = 0
+            if retry_after <= 0:
                 retry_after = 60.0
             with _discord_lock:
                 discord_rate_limit_until = time.time() + retry_after
-            body_preview = resp.text[:200] if resp.text else "(empty)"
-            print(f"Discord 429 — cooldown set for {retry_after}s. Body: {body_preview!r}")
-            mins = int(retry_after // 60)
-            secs = int(retry_after % 60)
-            label = f"{mins}m {secs}s" if mins else f"{secs}s"
-            return False, f"Discord 429 — body: {body_preview}"
+            body_preview = resp.text[:300] if resp.text.strip() else "(empty)"
+            relevant_headers = {
+                k: v for k, v in resp.headers.items()
+                if k.lower().startswith(("retry", "x-ratelimit", "cf-", "content"))
+            }
+            print(f"Discord 429 — body: {body_preview!r}, headers: {relevant_headers}")
+            return False, f"Discord 429 — body: {body_preview} | headers: {relevant_headers}"
         discord_ok = resp.status_code in (200, 204)
         error = None if discord_ok else f"Discord {resp.status_code}: {resp.text[:120]}"
         return discord_ok, error
