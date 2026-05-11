@@ -92,7 +92,10 @@ def send_to_discord(title, url, excerpt, image_url=None):
         try:
             resp = requests.post(DISCORD_WEBHOOK_URL, json=message, timeout=10)
             if resp.status_code == 429:
-                retry_after = float(resp.json().get("retry_after", 2))
+                try:
+                    retry_after = float(resp.json().get("retry_after", 2))
+                except Exception:
+                    retry_after = 2.0
                 print(f"Discord rate limited — retrying in {retry_after}s (attempt {attempt + 1})")
                 time.sleep(retry_after)
                 continue
